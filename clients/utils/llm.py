@@ -25,7 +25,7 @@ load_dotenv()
 
 CACHE_DIR = Path("./cache_dir")
 CACHE_PATH = CACHE_DIR / "cache.json"
-GPT_MODEL = "gpt-4o"
+GPT_MODEL = "gpt-5-mini"
 
 
 @dataclass
@@ -69,8 +69,9 @@ class Cache:
 class GPTClient:
     """Abstraction for OpenAI's GPT series model."""
 
-    def __init__(self, auth_type: str = "key", api_key: Optional[str] = None, azure_config_file: Optional[str] = None, use_cache: bool = True):
-        self.cache = Cache()
+    def __init__(self, auth_type: str = "key", api_key: Optional[str] = None, 
+             azure_config_file: Optional[str] = None, use_cache: bool = True):
+        self.cache = Cache() if use_cache else None
         self.client = self._setup_client(auth_type, api_key, azure_config_file)
 
     def _load_azure_config(self, yaml_file_path: str) -> AzureConfig:
@@ -121,25 +122,27 @@ class GPTClient:
             response = self.client.chat.completions.create(
                 messages=payload,  # type: ignore
                 model=GPT_MODEL,
-                max_tokens=1024,
-                temperature=0.5,
-                top_p=0.95,
-                frequency_penalty=0.0,
-                presence_penalty=0.0,
+                max_completion_tokens=4096,
+                reasoning_effort="medium",
+            #   temperature=0.5,
+            #    top_p=0.95,
+            #    frequency_penalty=0.0,
+            #    presence_penalty=0.0,
                 n=1,
                 timeout=60,
-                stop=[],
+             #  stop=[],
             )
         except Exception as e:
             print(f"Exception: {repr(e)}")
             raise
-
+        
+        print(f"[sanity check] modello effettivo restituito dall'API: {response.model}")
+        
         return [c.message.content for c in response.choices]  # type: ignore
 
     def run(self, payload: list[dict[str, str]]) -> list[str]:
         response = self.inference(payload)
         if self.cache is not None:
-            self.cache.add_to_cache(payload, response)
             self.cache.save_cache()
         return response
 
@@ -357,6 +360,7 @@ class GenericOpenAIClient:
         model: Optional[str] = None,
         api_key: Optional[str] = None,
         max_tokens: int = 16000,
+        use_cache: bool = True,
     ):
         self.cache = Cache()
         self.model = model or os.getenv("OPENAI_COMPATIBLE_MODEL", "gpt-4o")
@@ -376,8 +380,10 @@ class GenericOpenAIClient:
         self.client = OpenAI(api_key=resolved_api_key, base_url=resolved_base_url)
 
     def inference(self, payload: list[dict[str, str]]) -> list[str]:
+        cache_key = {"model": self.model, "messages": payload}
+
         if self.cache is not None:
-            cache_result = self.cache.get_from_cache(payload)
+            cache_result = self.cache.get_from_cache(cache_key)
             if cache_result is not None:
                 return cache_result
 
@@ -385,25 +391,24 @@ class GenericOpenAIClient:
             response = self.client.chat.completions.create(
                 messages=payload,  # type: ignore
                 model=self.model,
-                max_tokens=self.max_tokens,
-                temperature=0.5,
-                top_p=0.95,
-                frequency_penalty=0.0,
-                presence_penalty=0.0,
+                max_completion_tokens=self.max_tokens,
                 n=1,
                 timeout=60,
-                stop=[],
             )
         except Exception as e:
             print(f"Exception: {repr(e)}")
             raise
 
-        return [c.message.content for c in response.choices]  # type: ignore
+        result = [c.message.content for c in response.choices]  # type: ignore
+
+        if self.cache is not None:
+            self.cache.add_to_cache(cache_key, result)
+
+        return result
 
     def run(self, payload: list[dict[str, str]]) -> list[str]:
         response = self.inference(payload)
         if self.cache is not None:
-            self.cache.add_to_cache(payload, response)
             self.cache.save_cache()
         return response
 

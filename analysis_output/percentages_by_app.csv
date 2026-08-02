@@ -1,0 +1,5 @@
+app,problemi_attesi,eseguiti,non_eseguiti,risolti_correttamente,risolti_esito_negativo,eseguiti_non_valutabili,%_risolti_correttamente_su_attesi,%_esito_negativo_su_attesi,%_non_eseguiti_su_attesi
+Flower,2,0,2,0,0,0,0.0,0.0,100.0
+AstronomyShop,24,21,3,8,13,0,33.3,54.2,12.5
+SocialNetwork,25,25,0,11,14,0,44.0,56.0,0.0
+HotelReservation,38,31,7,26,5,0,68.4,13.2,18.4

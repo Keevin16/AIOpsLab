@@ -103,6 +103,18 @@ class GPTAgent:
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Esegue GPTAgent su un batch di problemi AIOpsLab")
+    parser.add_argument(
+        "--problems-file",
+        type=str,
+        default=None,
+        help="File di testo con un problem_id per riga. Se fornito, esegue SOLO "
+             "questi problemi invece dell'intero registry (104 problemi).",
+    )
+    args = parser.parse_args()
+
     # Load use_wandb from environment variable with a default of False
     use_wandb = os.getenv("USE_WANDB", "false").lower() == "true"
     
@@ -111,15 +123,36 @@ if __name__ == "__main__":
         wandb.init(project="AIOpsLab", entity="AIOpsLab")
 
     problems = ProblemRegistry().PROBLEM_REGISTRY
+
+    if args.problems_file:
+        with open(args.problems_file) as f:
+            wanted_ids = {line.strip() for line in f if line.strip() and not line.startswith("#")}
+        missing_from_registry = wanted_ids - set(problems.keys())
+        if missing_from_registry:
+            print(f"[WARN] {len(missing_from_registry)} problem_id nel file non esistono nel registry, verranno ignorati:")
+            for pid in sorted(missing_from_registry):
+                print(f"   - {pid}")
+        problems = {pid: fn for pid, fn in problems.items() if pid in wanted_ids}
+        print(f"Eseguo solo {len(problems)} problemi (da {args.problems_file})")
+    else:
+        print(f"Eseguo tutti i {len(problems)} problemi del registry")
+
     for pid in problems:
         agent = GPTAgent()
 
         orchestrator = Orchestrator()
         orchestrator.register_agent(agent, name="gpt-w-shell")
 
-        problem_desc, instructs, apis = orchestrator.init_problem(pid)
-        agent.init_context(problem_desc, instructs, apis)
-        asyncio.run(orchestrator.start_problem(max_steps=30))
+        try:
+            problem_desc, instructs, apis = orchestrator.init_problem(pid)
+            agent.init_context(problem_desc, instructs, apis)
+            asyncio.run(orchestrator.start_problem(max_steps=30))
+        except Exception as e:
+            print(f"Run interrotta per '{pid}': {e}")
+        finally:
+            if orchestrator.session is not None:
+                orchestrator.session.end()
+                orchestrator.session.to_json()
 
     if use_wandb:
         # Finish the wandb run
