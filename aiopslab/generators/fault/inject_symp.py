@@ -47,6 +47,9 @@ class SymptomFaultInjector(FaultInjector):
         Helm.install(**chaos_configs)
 
     def create_chaos_experiment(self, experiment_yaml: dict, experiment_name: str):
+        # Set by the SRE-agent runner from the scenario's "fault_duration"
+        if os.environ.get("AIOPSLAB_FAULT_DURATION"):
+            experiment_yaml["spec"]["duration"] = os.environ["AIOPSLAB_FAULT_DURATION"]
         chaos_yaml_path = f"/tmp/{experiment_name}.yaml"
         with open(chaos_yaml_path, "w") as file:
             yaml.dump(experiment_yaml, file)
