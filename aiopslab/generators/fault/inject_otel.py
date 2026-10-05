@@ -29,12 +29,19 @@ class OtelFaultInjector(FaultInjector):
         flagd_data = json.loads(configmap["data"]["demo.flagd.json"])
 
         if feature_flag in flagd_data["flags"]:
-            if feature_flag == "paymentFailure":
-                flagd_data["flags"][feature_flag]["defaultVariant"] = "100%"
-            elif feature_flag == "imageSlowLoad":
-                flagd_data["flags"][feature_flag]["defaultVariant"] = "10sec"
-            else:
-                flagd_data["flags"][feature_flag]["defaultVariant"] = "on"
+            flag = flagd_data["flags"][feature_flag]
+            if feature_flag == "productCatalogFailure":
+                # the targeting wins over defaultVariant and returns "off" in both branches
+                flag["targeting"]["if"][1] = "on"
+            variant = {"paymentFailure": "100%", "cartFailure": "100%", "imageSlowLoad": "10sec"}.get(
+                feature_flag, "on"
+            )
+            # flagd rejects the WHOLE config (every flag, every service) on an invalid default variant
+            if variant not in flag["variants"]:
+                raise ValueError(
+                    f"Variant '{variant}' is not valid for feature flag '{feature_flag}': {list(flag['variants'])}"
+                )
+            flag["defaultVariant"] = variant
         else:
             raise ValueError(
                 f"Feature flag '{feature_flag}' not found in ConfigMap '{self.configmap_name}'."
@@ -49,7 +56,7 @@ class OtelFaultInjector(FaultInjector):
             f"kubectl rollout restart deployment flagd -n {self.namespace}"
         )
         
-        print(f"Fault injected: Feature flag '{feature_flag}' set to 'on'.")
+        print(f"Fault injected: Feature flag '{feature_flag}' set to '{variant}'.")
 
     def recover_fault(self, feature_flag: str):
         command = (
@@ -71,6 +78,8 @@ class OtelFaultInjector(FaultInjector):
 
         if feature_flag in flagd_data["flags"]:
             flagd_data["flags"][feature_flag]["defaultVariant"] = "off"
+            if feature_flag == "productCatalogFailure":
+                flagd_data["flags"][feature_flag]["targeting"]["if"][1] = "off"
         else:
             raise ValueError(
                 f"Feature flag '{feature_flag}' not found in ConfigMap '{self.configmap_name}'."
