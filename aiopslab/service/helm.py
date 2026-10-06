@@ -61,13 +61,14 @@ class Helm:
         if extra_args:
             command += " " + " ".join(extra_args)
 
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+        process = subprocess.Popen(
+            command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
         output, error = process.communicate()
 
-        if error:
-            print(error.decode("utf-8"))
-        else:
-            print(output.decode("utf-8"))
+        if process.returncode != 0:
+            raise RuntimeError(f"helm install failed: {error.decode('utf-8')}")
+        print(output.decode("utf-8"))
 
     @staticmethod
     def uninstall(**args):
