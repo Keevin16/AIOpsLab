@@ -29,7 +29,10 @@ class AstronomyShop(Application):
             "https://open-telemetry.github.io/opentelemetry-helm-charts",
         )
         Helm.install(**self.helm_configs)
-        Helm.assert_if_deployed(self.helm_configs["namespace"])
+        # The OpenTelemetry Demo chart deploys ~29 pods (kafka, opensearch, grafana,
+        # jaeger, ...) and can take longer than assert_if_deployed's default 300s
+        # readiness timeout, especially on a cold image cache.
+        self.kubectl.wait_for_ready(self.namespace, max_wait=900)
 
     def delete(self):
         """Delete the Helm configurations."""
