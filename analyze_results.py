@@ -173,10 +173,23 @@ def extract_success_and_detail(results: dict):
       - detail: stringa con il motivo/valore grezzo, utile per capire IL
         TIPO di fallimento (es. 'Incorrect' vs 'Invalid Format' per
         detection non sono lo stesso tipo di errore: il secondo indica che
-        l'agente non ha nemmeno rispettato il formato di submit atteso)
+        l'agente non ha nemmeno rispettato il formato di submit atteso).
+        Per i problemi 'analysis', include anche system_level_correct e
+        fault_type_correct: se ENTRAMBI risultano False, e' un forte
+        indizio (non una certezza) che l'agente non abbia mai sottomesso
+        un dizionario valido, invece di aver sbagliato nel merito.
     """
     if not results:
         return None, None
+
+    if "system_level_correct" in results or "fault_type_correct" in results:
+        sys_ok = results.get("system_level_correct")
+        fault_ok = results.get("fault_type_correct")
+        success = results.get("success")
+        both_false = (sys_ok is False) and (fault_ok is False)
+        flag = " [possibile formato non valido: submit() forse non ha restituito un dict]" if both_false else ""
+        detail = f"system_level_correct={sys_ok}, fault_type_correct={fault_ok}{flag}"
+        return (bool(success) if success is not None else None), detail
 
     if "success" in results:
         return bool(results["success"]), f"success={results['success']}"

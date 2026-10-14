@@ -1,0 +1,19 @@
+problem_id,esito,outcome_detail,causa,ultima_submit,file
+assign_to_non_existent_node_social_net-analysis-1,esito_negativo,"system_level_correct=False, fault_type_correct=False [possibile formato non valido: submit() forse non ha restituito un dict]","CONTENUTO: submit({...}) ben formata trovata, valori probabilmente sbagliati","submit({""system_level"": ""Application"", ""fault_type"": ""Misconfiguration""})
+```",d1244bb3-e0d0-4a4c-b3ff-bc82515ca7f4_1785699671.5215902.json
+k8s_target_port-misconfig-analysis-1,esito_negativo,"system_level_correct=False, fault_type_correct=False [possibile formato non valido: submit() forse non ha restituito un dict]","CONTENUTO: submit({...}) ben formata trovata, valori probabilmente sbagliati","submit({""system_level"": ""Application"", ""fault_type"": ""Dependency Problem""})
+```",c63407b6-f61a-4084-94c2-5d6a70b632d8_1785691969.472301.json
+k8s_target_port-misconfig-analysis-2,esito_negativo,"system_level_correct=False, fault_type_correct=True","CONTENUTO: submit({...}) ben formata trovata, valori probabilmente sbagliati","submit({""system_level"": ""Application"", ""fault_type"": ""Misconfiguration""})
+```",97288ef8-9c59-45a8-aec0-2900812c1219_1785692681.840105.json
+k8s_target_port-misconfig-analysis-3,esito_negativo,"system_level_correct=False, fault_type_correct=True","CONTENUTO: submit({...}) ben formata trovata, valori probabilmente sbagliati","submit({""system_level"": ""Application"", ""fault_type"": ""Misconfiguration""})
+```",c15cd3b2-cd3a-4756-9ffe-c1c0ae649eda_1785693397.3254097.json
+redeploy_without_PV-analysis-1,esito_negativo,"system_level_correct=False, fault_type_correct=False [possibile formato non valido: submit() forse non ha restituito un dict]","CONTENUTO: submit({...}) ben formata trovata, valori probabilmente sbagliati","submit({""system_level"": ""Application"", ""fault_type"": ""Code Defect""})
+```",679d8aad-df81-4118-ac7b-566cfad2e23c_1785713064.0910513.json
+scale_pod_zero_social_net-analysis-1,esito_negativo,"system_level_correct=False, fault_type_correct=False [possibile formato non valido: submit() forse non ha restituito un dict]","CONTENUTO: submit({...}) ben formata trovata, valori probabilmente sbagliati","submit({""system_level"": ""Application"", ""fault_type"": ""Misconfiguration""})
+```",c2be9a2e-c8e1-4676-89ae-4f92f1083755_1785698935.1592686.json
+user_unregistered_mongodb-analysis-1,esito_negativo,"system_level_correct=True, fault_type_correct=False","CONTENUTO: submit({...}) ben formata trovata, valori probabilmente sbagliati","submit({""system_level"": ""Application"", ""fault_type"": ""Authentication Issue""})
+```",ff3ded38-6335-44e3-a32e-cc2774946c34_1785696608.7838142.json
+user_unregistered_mongodb-analysis-2,esito_negativo,"system_level_correct=True, fault_type_correct=False","CONTENUTO: submit({...}) ben formata trovata, valori probabilmente sbagliati","submit({""system_level"": ""Application"", ""fault_type"": ""Misconfiguration""})
+```",9821652a-14e3-429b-bd63-b76b55097918_1785697373.036234.json
+wrong_bin_usage-analysis-1,esito_negativo,"system_level_correct=True, fault_type_correct=False","CONTENUTO: submit({...}) ben formata trovata, valori probabilmente sbagliati","submit({""system_level"": ""Application"", ""fault_type"": ""Code Defect""})
+```",132e9a41-1533-4809-8ed2-1b618fd5d427_1785713868.7846243.json
