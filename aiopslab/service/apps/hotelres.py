@@ -68,7 +68,8 @@ class HotelReservation(Application):
         """Deploy the Kubernetes configurations."""
         print(f"Deploying Kubernetes configurations in namespace: {self.namespace}")
         self.kubectl.apply_configs(self.namespace, self.k8s_deploy_path)
-        self.kubectl.wait_for_ready(self.namespace)
+        # No readiness probes: geo & co. look Ready ~16 s before crashing on a MongoDB still starting
+        self.kubectl.wait_for_ready(self.namespace, stable_for=30)
     
     def deploy_without_wait(self):
         """Deploy the Kubernetes configurations without waiting for ready."""

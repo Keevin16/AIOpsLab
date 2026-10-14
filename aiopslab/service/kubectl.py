@@ -111,14 +111,20 @@ class KubeCtl:
             for container_status in container_statuses
         )
 
-    def wait_for_ready(self, namespace, sleep=2, max_wait=300):
-        """Wait for all pods in a namespace to be in a Ready state before proceeding."""
+    def wait_for_ready(self, namespace, sleep=2, max_wait=300, stable_for=0):
+        """Wait for all pods in a namespace to be in a Ready state before proceeding.
+
+        stable_for: seconds all pods must then stay ready with no new container restart. A pod without a
+        readiness probe is Ready as soon as it starts, even if it is about to crash on a dependency still down
+        (Hotel Reservation's geo on MongoDB), and a workload started in that window only records errors.
+        """
 
         console = Console()
         console.log(f"[bold green]Waiting for all pods in namespace '{namespace}' to be ready...")
 
         with console.status("[bold green]Waiting for pods to be ready...") as status:
             wait = 0
+            stable = None  # (wait, total restarts) when all pods were last seen becoming ready
 
             while wait < max_wait:
                 try:
@@ -130,9 +136,16 @@ class KubeCtl:
                             if self._pod_is_ready_or_succeeded(pod)
                         ]
 
-                        if len(ready_pods) == len(pod_list.items):
-                            console.log(f"[bold green]All pods in namespace '{namespace}' are ready.")
-                            return
+                        if len(ready_pods) < len(pod_list.items):
+                            stable = None
+                        else:
+                            restarts = sum(getattr(c, "restart_count", 0) or 0 for pod in pod_list.items
+                                           for c in getattr(pod.status, "container_statuses", None) or [])
+                            if stable is None or stable[1] != restarts:
+                                stable = (wait, restarts)
+                            if wait - stable[0] >= stable_for:
+                                console.log(f"[bold green]All pods in namespace '{namespace}' are ready.")
+                                return
 
                 except Exception as e:
                     console.log(f"[red]Error checking pod statuses: {e}")
