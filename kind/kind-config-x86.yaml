@@ -1,11 +1,20 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+# Make containerd read the registry mirrors written to /etc/containerd/certs.d
+# (see SRE-agent/registry/REGISTRY_SETUP.md); without this the hosts.toml files are ignored.
+containerdConfigPatches:
+- |-
+  [plugins."io.containerd.grpc.v1.cri".registry]
+    config_path = "/etc/containerd/certs.d"
 nodes:
   - role: control-plane
     image: jacksonarthurclark/aiopslab-kind-x86:latest
     extraMounts:
       - hostPath: /run/udev
         containerPath: /run/udev
+    extraPortMappings:
+      - containerPort: 32000 # Prometheus NodePort (observe/prometheus-server), used as PROMETHEUS_SERVER_URL
+        hostPort: 32000
   - role: worker
     image: jacksonarthurclark/aiopslab-kind-x86:latest
     extraMounts:
