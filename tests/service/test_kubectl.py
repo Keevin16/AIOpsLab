@@ -94,3 +94,34 @@ class WaitForReadyStabilityTest(unittest.TestCase):
         flapping = [_snapshot((True, 0)), _snapshot((False, 1))] * 20
         with self.assertRaises(Exception):
             _polls(flapping, stable_for=30, max_wait=60)
+
+
+def _service(name, selector=True):
+    return SimpleNamespace(metadata=SimpleNamespace(name=name), spec=SimpleNamespace(selector={"app": name} if selector else None))
+
+
+def _slice(service, *ready):
+    return SimpleNamespace(metadata=SimpleNamespace(labels={"kubernetes.io/service-name": service}),
+                           endpoints=[SimpleNamespace(conditions=SimpleNamespace(ready=r)) for r in ready])
+
+
+class ServiceEndpointsTest(unittest.TestCase):
+
+    def test_ready_endpoints_everywhere(self):
+        self.assertEqual(KubeCtl._services_without_ready_endpoints(
+            [_service("ad"), _service("shipping")], [_slice("ad", True), _slice("shipping", True)]), [])
+
+    def test_ready_pod_not_yet_ready_in_its_endpoint_slice(self):
+        # Astronomy Shop 2026-10-17: shipping Ready at 13:36:57, its endpoint ready only at 13:37:25
+        self.assertEqual(KubeCtl._services_without_ready_endpoints([_service("shipping")], [_slice("shipping", False)]), ["shipping"])
+
+    def test_service_without_endpoints_yet(self):
+        self.assertEqual(KubeCtl._services_without_ready_endpoints([_service("shipping")], [_slice("shipping")]), ["shipping"])
+        self.assertEqual(KubeCtl._services_without_ready_endpoints([_service("shipping")], []), ["shipping"])
+
+    def test_terminating_endpoint_next_to_a_ready_one_still_waits(self):
+        # rollout restart of flagd: the old pod's endpoint is not ready while it terminates
+        self.assertEqual(KubeCtl._services_without_ready_endpoints([_service("flagd")], [_slice("flagd", True, None)]), ["flagd"])
+
+    def test_service_without_selector_is_ignored(self):
+        self.assertEqual(KubeCtl._services_without_ready_endpoints([_service("external", selector=False)], []), [])

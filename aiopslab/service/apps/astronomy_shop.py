@@ -36,6 +36,7 @@ class AstronomyShop(Application):
         # jaeger, ...) and can take longer than assert_if_deployed's default 300s
         # readiness timeout, especially on a cold image cache.
         self.kubectl.wait_for_ready(self.namespace, max_wait=900, stable_for=30)
+        self.kubectl.wait_for_endpoints(self.namespace)
 
     def delete(self):
         """Delete the Helm configurations."""

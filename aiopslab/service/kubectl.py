@@ -36,6 +36,7 @@ class KubeCtl:
         
         self.core_v1_api = client.CoreV1Api()
         self.apps_v1_api = client.AppsV1Api()
+        self.discovery_v1_api = client.DiscoveryV1Api()
 
     def list_namespaces(self):
         """Return a list of all namespaces in the cluster."""
@@ -154,7 +155,40 @@ class KubeCtl:
                 wait += sleep
 
             raise Exception(f"[red]Timeout: Not all pods in namespace '{namespace}' reached the Ready state within {max_wait} seconds.")
-    
+
+    @staticmethod
+    def _services_without_ready_endpoints(services, endpoint_slices):
+        """Names of the selector Services with no endpoint yet, or with one not ready (starting or terminating)."""
+        ready = {}
+        for endpoint_slice in endpoint_slices:
+            service = (endpoint_slice.metadata.labels or {}).get("kubernetes.io/service-name")
+            ready.setdefault(service, []).extend(
+                bool(endpoint.conditions and endpoint.conditions.ready) for endpoint in endpoint_slice.endpoints or [])
+        return [service.metadata.name for service in services
+                if service.spec.selector and not (ready.get(service.metadata.name) and all(ready[service.metadata.name]))]
+
+    def wait_for_endpoints(self, namespace, sleep=2, max_wait=300):
+        """Wait until every Service in the namespace routes only to ready endpoints.
+
+        A Ready pod is not routable yet: its endpoint turns ready in the EndpointSlice 28-70 s later on a loaded kind
+        node (Astronomy Shop cold start), and until then the ClusterIP refuses connections (ECONNREFUSED).
+        """
+        console = Console()
+        wait, pending = 0, None
+        while wait < max_wait:
+            try:
+                pending = self._services_without_ready_endpoints(
+                    self.list_services(namespace).items,
+                    self.discovery_v1_api.list_namespaced_endpoint_slice(namespace).items)
+                if not pending:
+                    console.log(f"[bold green]All services in namespace '{namespace}' have ready endpoints.")
+                    return
+            except Exception as e:
+                console.log(f"[red]Error checking endpoints: {e}")
+            time.sleep(sleep)
+            wait += sleep
+        raise Exception(f"[red]Timeout: services in namespace '{namespace}' without ready endpoints after {max_wait} seconds: {pending}")
+
     def wait_for_namespace_deletion(self, namespace, sleep=2, max_wait=300):
         """Wait for a namespace to be fully deleted before proceeding."""
 
