@@ -1,36 +1,58 @@
 # Chart 0.42.1 defines no readiness probe: a pod is Ready as soon as its container starts, so wait_for_ready
 # returns (and the fault is injected) while shipping & co. still refuse the load generator's connections.
 # A TCP probe on each service in the request path makes Ready mean "listening".
+#
+# FLAGD_CACHE=disabled on every flagd client: the OpenFeature providers (ad, recommendation, ...) resolve a flag once,
+# then serve it from cache, and the flagd restart of the injection does not invalidate it, so a flag first read
+# before the injection stays off (cf. SREGym #724, fixed there by restarting the consuming service).
 components:
   ad:
     readinessProbe: &probe
       tcpSocket:
         port: service
       periodSeconds: 5
+    envOverrides: &nocache
+      - name: FLAGD_CACHE
+        value: disabled
   cart:
     readinessProbe: *probe
+    envOverrides: *nocache
   checkout:
     readinessProbe: *probe
+    envOverrides: *nocache
   currency:
     readinessProbe: *probe
   email:
     readinessProbe: *probe
+    envOverrides: *nocache
   frontend:
     readinessProbe: *probe
+    envOverrides: *nocache
   frontend-proxy:
     readinessProbe: *probe
+    envOverrides: *nocache
   image-provider:
     readinessProbe: *probe
   payment:
     readinessProbe: *probe
+    envOverrides: *nocache
   product-catalog:
     readinessProbe: *probe
+    envOverrides: *nocache
   quote:
     readinessProbe: *probe
   recommendation:
     readinessProbe: *probe
+    envOverrides: *nocache
   shipping:
     readinessProbe: *probe
+    envOverrides: *nocache
+  agent:
+    envOverrides: *nocache
+  fraud-detection:
+    envOverrides: *nocache
+  load-generator:
+    envOverrides: *nocache
   astronomy-db:
     readinessProbe: *probe
   flagd:
