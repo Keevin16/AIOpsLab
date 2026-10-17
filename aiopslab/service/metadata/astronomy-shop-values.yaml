@@ -1,0 +1,47 @@
+# Chart 0.42.1 defines no readiness probe: a pod is Ready as soon as its container starts, so wait_for_ready
+# returns (and the fault is injected) while shipping & co. still refuse the load generator's connections.
+# A TCP probe on each service in the request path makes Ready mean "listening".
+components:
+  ad:
+    readinessProbe: &probe
+      tcpSocket:
+        port: service
+      periodSeconds: 5
+  cart:
+    readinessProbe: *probe
+  checkout:
+    readinessProbe: *probe
+  currency:
+    readinessProbe: *probe
+  email:
+    readinessProbe: *probe
+  frontend:
+    readinessProbe: *probe
+  frontend-proxy:
+    readinessProbe: *probe
+  image-provider:
+    readinessProbe: *probe
+  payment:
+    readinessProbe: *probe
+  product-catalog:
+    readinessProbe: *probe
+  quote:
+    readinessProbe: *probe
+  recommendation:
+    readinessProbe: *probe
+  shipping:
+    readinessProbe: *probe
+  astronomy-db:
+    readinessProbe: *probe
+  flagd:
+    readinessProbe:
+      tcpSocket:
+        port: rpc
+      periodSeconds: 5
+  # No probe on kafka: it reaches its own controller through the kafka Service (1@kafka:9093), which has no
+  # endpoint until the pod is Ready, so it would never become Ready. Its clients already wait for it (init containers).
+  valkey-cart:
+    readinessProbe:
+      tcpSocket:
+        port: valkey-cart
+      periodSeconds: 5

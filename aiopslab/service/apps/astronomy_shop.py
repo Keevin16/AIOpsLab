@@ -28,11 +28,14 @@ class AstronomyShop(Application):
             "open-telemetry",
             "https://open-telemetry.github.io/opentelemetry-helm-charts",
         )
-        Helm.install(**self.helm_configs)
+        # Readiness probes (the chart has none); its schema allows only httpGet, useless on the gRPC services
+        values = ASTRONOMY_SHOP_METADATA.parent / "astronomy-shop-values.yaml"
+        extra_args = [*self.helm_configs.get("extra_args", []), f"--values {values}", "--skip-schema-validation"]
+        Helm.install(**{**self.helm_configs, "extra_args": extra_args})
         # The OpenTelemetry Demo chart deploys ~29 pods (kafka, opensearch, grafana,
         # jaeger, ...) and can take longer than assert_if_deployed's default 300s
         # readiness timeout, especially on a cold image cache.
-        self.kubectl.wait_for_ready(self.namespace, max_wait=900)
+        self.kubectl.wait_for_ready(self.namespace, max_wait=900, stable_for=30)
 
     def delete(self):
         """Delete the Helm configurations."""
