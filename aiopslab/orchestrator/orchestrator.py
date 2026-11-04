@@ -69,8 +69,8 @@ class Orchestrator:
             self.prometheus = Prometheus()
             self.prometheus.deploy()
 
-            # The same pods in every scenario, not only in the ones that use Chaos Mesh
-            if os.getenv("AIOPSLAB_CHAOS_MESH_ALWAYS"):
+            # The same pods in every scenario; the injector of a Chaos Mesh problem has already installed it
+            if os.getenv("AIOPSLAB_CHAOS_MESH_ALWAYS") and not Helm.exists_release("chaos-mesh", "chaos-mesh"):
                 SymptomFaultInjector(namespace=prob.app.namespace)
 
         # deploy service

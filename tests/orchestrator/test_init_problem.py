@@ -14,7 +14,7 @@ VARIABLES = ("AIOPSLAB_SETTLE_S", "AIOPSLAB_RUN_META", "AIOPSLAB_CHAOS_MESH_ALWA
 
 class InitProblemTest(unittest.TestCase):
 
-    def _init_problem(self, **env):
+    def _init_problem(self, chaos_installed=False, **env):
         """Run init_problem on a fake problem and return what happened, in order."""
         events = []
         prob = MagicMock()
@@ -22,7 +22,8 @@ class InitProblemTest(unittest.TestCase):
         prob.app.deploy.side_effect = lambda: events.append("deploy")
         prob.inject_fault.side_effect = lambda: events.append("inject")
         prob.start_workload = lambda: events.append("workload")
-        with patch(f"{MODULE}.KubeCtl"), patch(f"{MODULE}.ProblemRegistry"), patch(f"{MODULE}.Session"), \
+        with patch(f"{MODULE}.Helm.exists_release", return_value=chaos_installed), \
+                patch(f"{MODULE}.KubeCtl"), patch(f"{MODULE}.ProblemRegistry"), patch(f"{MODULE}.Session"), \
                 patch(f"{MODULE}.Prometheus"), patch(f"{MODULE}.atexit"), \
                 patch(f"{MODULE}.SymptomFaultInjector",
                       side_effect=lambda namespace: events.append(f"chaos-mesh:{namespace}")), \
@@ -48,6 +49,9 @@ class InitProblemTest(unittest.TestCase):
     def test_chaos_mesh_is_installed_before_the_deploy_only_on_request(self):
         self.assertEqual(self._init_problem(AIOPSLAB_CHAOS_MESH_ALWAYS="1")[0], "chaos-mesh:ns")
         self.assertNotIn("chaos-mesh:ns", self._init_problem())
+
+    def test_chaos_mesh_installed_by_the_problem_is_not_installed_again(self):
+        self.assertNotIn("chaos-mesh:ns", self._init_problem(chaos_installed=True, AIOPSLAB_CHAOS_MESH_ALWAYS="1"))
 
     def test_run_meta_records_the_timeline(self):
         with tempfile.TemporaryDirectory() as tmp:
