@@ -5,8 +5,21 @@
 
 from kubernetes import client, config
 from aiopslab.paths import BASE_DIR
+import os
+import shlex
 import yaml
 import time
+
+
+def parse_schedule(schedule):
+    """Parse "300:20,300:50" into [(300, 20), (300, 50)]: seconds and requests per second of each segment."""
+    segments = []
+    for segment in schedule.split(","):
+        seconds, rate = (int(value) for value in segment.split(":"))
+        if seconds <= 0 or rate <= 0:
+            raise ValueError(f"Invalid workload segment: {segment}")
+        segments.append((seconds, rate))
+    return segments
 
 
 class Wrk:
@@ -46,6 +59,25 @@ class Wrk:
         except client.exceptions.ApiException as e:
             print(f"Error creating ConfigMap '{name}': {e}")
 
+    def continuous_command(self, segments, payload_script, url):
+        """Shell command that repeats the segments until the cluster is deleted.
+
+        wrk exits at once when it cannot connect, so each segment retries until its own end:
+        a frontend that is down for a while must not shift the load schedule.
+        """
+        connections = os.environ.get("AIOPSLAB_WORKLOAD_CONNECTIONS", self.connections)
+        wrk = shlex.join(["wrk", "-D", self.dist, "-t", str(self.threads), "-c", str(connections),
+                          "-L", "-s", f"/scripts/{payload_script}", url])
+        latency = " --latency" if self.latency else ""
+        return (
+            'run() { end=$(($(date +%s) + $1)); '
+            'while [ "$(date +%s)" -lt "$end" ]; do '
+            'echo "segment $(date +%s) $1 $2"; '
+            f'{wrk} -d "$((end - $(date +%s)))s" -R "$2"{latency} || sleep 5; '
+            'done; }; '
+            'while true; do ' + ' '.join(f'run {seconds} {rate};' for seconds, rate in segments) + ' done'
+        )
+
     def create_wrk_job(self, job_name, namespace, payload_script, url):
         wrk_job_yaml = BASE_DIR / "generators" / "workload" / "wrk-job-template.yaml"
         with open(wrk_job_yaml, "r") as f:
@@ -53,20 +85,25 @@ class Wrk:
 
         job_template["metadata"]["name"] = job_name
         container = job_template["spec"]["template"]["spec"]["containers"][0]
-        container["args"] = [
-            "wrk",
-            "-D", self.dist,
-            "-t", str(self.threads),
-            "-c", str(self.connections),
-            "-d", f"{self.duration}s",
-            "-L",
-            "-s", f"/scripts/{payload_script}",
-            url,
-            "-R", str(self.rate),
-        ]
+        schedule = os.environ.get("AIOPSLAB_WORKLOAD_SCHEDULE")
+        if schedule:
+            container["command"] = ["/bin/sh", "-c"]
+            container["args"] = [self.continuous_command(parse_schedule(schedule), payload_script, url)]
+        else:
+            container["args"] = [
+                "wrk",
+                "-D", self.dist,
+                "-t", str(self.threads),
+                "-c", str(self.connections),
+                "-d", f"{self.duration}s",
+                "-L",
+                "-s", f"/scripts/{payload_script}",
+                url,
+                "-R", str(self.rate),
+            ]
 
-        if self.latency:
-            container["args"].append("--latency")
+            if self.latency:
+                container["args"].append("--latency")
 
         job_template["spec"]["template"]["spec"]["volumes"] = [
             {
@@ -94,7 +131,11 @@ class Wrk:
                         propagation_policy="Foreground"
                     )
                 )
-                time.sleep(5)
+                # Creating it again fails until the old pod is gone: a looping pod can take its whole grace period.
+                # The 404 of the read ends the wait, in the except below.
+                for _ in range(60):
+                    api_instance.read_namespaced_job(name=job_name, namespace=namespace)
+                    time.sleep(2)
         except client.exceptions.ApiException as e:
             if e.status != 404:
                 print(f"Error checking for existing job: {e}")

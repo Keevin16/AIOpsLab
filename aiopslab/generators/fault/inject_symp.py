@@ -44,7 +44,9 @@ class SymptomFaultInjector(FaultInjector):
         else:
             raise ValueError(f"Unsupported container runtime: {container_runtime}")
 
-        Helm.install(**chaos_configs)
+        # The orchestrator may have installed it already (AIOPSLAB_CHAOS_MESH_ALWAYS)
+        if not Helm.exists_release("chaos-mesh", "chaos-mesh"):
+            Helm.install(**chaos_configs)
 
     def create_chaos_experiment(self, experiment_yaml: dict, experiment_name: str):
         # Set by the SRE-agent runner from the scenario's "fault_duration"

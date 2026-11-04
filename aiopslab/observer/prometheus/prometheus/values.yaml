@@ -745,6 +745,7 @@ serverFiles:
             - localhost:9090
       
       - job_name: 'kubernetes-cadvisor'
+        scrape_interval: 15s
 
         # Default to scraping over https. If required, just disable this or change to
         # `http`.
@@ -786,11 +787,22 @@ serverFiles:
             regex: __meta_kubernetes_node_label_(.+)
 
       - job_name: 'kubernetes-nodes'
+        scrape_interval: 15s
         kubernetes_sd_configs:
           - role: endpoints
         relabel_configs:
         - source_labels: [__meta_kubernetes_endpoints_name]
           regex: 'prometheus-prometheus-node-exporter'
+          action: keep
+
+      - job_name: 'kube-state-metrics'
+        scrape_interval: 15s
+        honor_labels: true
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_endpoints_name]
+          regex: 'prometheus-kube-state-metrics'
           action: keep
 
 # adds additional scrape configs to prometheus.yml

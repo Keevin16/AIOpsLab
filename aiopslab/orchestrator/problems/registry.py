@@ -11,6 +11,7 @@ from aiopslab.orchestrator.problems.pod_kill import *
 from aiopslab.orchestrator.problems.network_loss import *
 from aiopslab.orchestrator.problems.network_delay import *
 from aiopslab.orchestrator.problems.no_op import *
+from aiopslab.orchestrator.problems.dev_chaos import *
 from aiopslab.orchestrator.problems.kernel_fault import *
 from aiopslab.orchestrator.problems.disk_woreout import *
 from aiopslab.orchestrator.problems.ad_service_failure import *
@@ -162,6 +163,9 @@ class ProblemRegistry:
             ),
             "noop_detection_social_network-1": lambda: NoOpDetection(app_name="social"),
             "noop_detection_astronomy_shop-1": lambda: NoOpDetection(app_name="astronomy_shop"),
+            # Parametric Chaos Mesh fault, see AIOPSLAB_DEV_CHAOS
+            "dev_chaos_hotel_res-detection-1": lambda: DevChaosDetection(app_name="hotel"),
+            "dev_chaos_social_net-detection-1": lambda: DevChaosDetection(app_name="social"),
             # NOTE: This should be getting fixed by the great powers of @jinghao-jia
             # Kernel fault -> https://github.com/xlab-uiuc/agent-ops/pull/10#issuecomment-2468992285
             # There's a bug in chaos mesh regarding this fault, wait for resolution and retest kernel fault

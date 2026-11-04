@@ -1,5 +1,6 @@
 """Redeployment of the HotelReservation application but do not handle PV."""
 
+import os
 from typing import Any
 
 from aiopslab.orchestrator.tasks import *
@@ -38,6 +39,9 @@ class RedeployWithoutPVBaseTask:
     def inject_fault(self):
         print("== Fault Injection ==")
         self.injector.inject_redeploy_without_pv(app=self.app)
+        # The new namespace has a new ClusterIP: a workload started before the fault would keep hitting the old one
+        if os.getenv("AIOPSLAB_SETTLE_S"):
+            self.start_workload()
         # self.injector._inject(
         #     fault_type="redepoly_without_pv",
         #     app=self.app,

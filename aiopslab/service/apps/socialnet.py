@@ -61,6 +61,9 @@ class SocialNetwork(Application):
 
         Helm.install(**self.helm_configs)
         Helm.assert_if_deployed(self.helm_configs["namespace"])
+        # Thrift calls go through the ClusterIPs, which refuse connections until the endpoints turn ready
+        self.kubectl.wait_for_ready(self.namespace, stable_for=30)
+        self.kubectl.wait_for_endpoints(self.namespace)
 
     def delete(self):
         """Delete the Helm configurations."""

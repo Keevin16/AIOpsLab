@@ -11,10 +11,12 @@ from aiopslab.orchestrator.parser import ResponseParser
 from aiopslab.utils.status import *
 from aiopslab.utils.critical_section import CriticalSection
 from aiopslab.service.telemetry.prometheus import Prometheus
+from aiopslab.generators.fault.inject_symp import SymptomFaultInjector
 import time
 import inspect
 import asyncio
 import atexit
+import json
 import os
 
 
@@ -67,9 +69,22 @@ class Orchestrator:
             self.prometheus = Prometheus()
             self.prometheus.deploy()
 
+            # The same pods in every scenario, not only in the ones that use Chaos Mesh
+            if os.getenv("AIOPSLAB_CHAOS_MESH_ALWAYS"):
+                SymptomFaultInjector(namespace=prob.app.namespace)
+
         # deploy service
         prob.app.delete()
         prob.app.deploy()
+        run_meta = {"t_deployed": time.time()}
+
+        # Inject on a system already settled under load; the workload then runs through the fault
+        settle_s = os.getenv("AIOPSLAB_SETTLE_S")
+        if settle_s:
+            self._start_workload(prob)
+            run_meta.update(t_workload=time.time(), settle_s=int(settle_s))
+            time.sleep(int(settle_s))
+        run_meta["t_inject"] = time.time()
 
         # make sure is_fault_injected is correct to apply appropriate
         # function with atexit to recover fault
@@ -77,18 +92,27 @@ class Orchestrator:
             # inject fault
             prob.inject_fault()
             atexit.register(exit_cleanup_fault, prob=prob)
+        run_meta["t_injected"] = time.time()
 
-        # Check if start_workload is async or sync
-        if inspect.iscoroutinefunction(prob.start_workload):
-            asyncio.create_task(prob.start_workload())
-        else:
-            prob.start_workload()
+        if os.getenv("AIOPSLAB_RUN_META"):
+            with open(os.environ["AIOPSLAB_RUN_META"], "w") as f:
+                json.dump(run_meta, f)
+
+        if not settle_s:
+            self._start_workload(prob)
 
         task_desc = prob.get_task_description()
         instructions = prob.get_instructions()
         actions = prob.get_available_actions()
 
         return task_desc, instructions, actions
+
+    def _start_workload(self, prob):
+        # Check if start_workload is async or sync
+        if inspect.iscoroutinefunction(prob.start_workload):
+            asyncio.create_task(prob.start_workload())
+        else:
+            prob.start_workload()
 
     def register_agent(self, agent, name="agent"):
         """Register the agent for the current session.
