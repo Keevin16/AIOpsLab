@@ -29,10 +29,10 @@ def _created_container(wrk):
 class ParseScheduleTest(unittest.TestCase):
 
     def test_segments(self):
-        self.assertEqual(parse_schedule("300:20,120:50"), [(300, 20), (120, 50)])
+        self.assertEqual(parse_schedule("300:20,120:50:2"), [(300, 20, 0), (120, 50, 2)])
 
     def test_invalid_segments_are_rejected(self):
-        for schedule in ("300", "300:20:1", "a:20", "0:20", "300:0", "300:-5"):
+        for schedule in ("300", "300:20:1:4", "a:20", "0:20", "300:0", "300:-5", "300:20:-1"):
             with self.subTest(schedule), self.assertRaises(ValueError):
                 parse_schedule(schedule)
 
@@ -50,12 +50,12 @@ class WrkJobTest(unittest.TestCase):
         ])
 
     def test_schedule_runs_a_shell_loop_with_its_rates(self):
-        env = {"AIOPSLAB_WORKLOAD_SCHEDULE": "300:20,120:50", "AIOPSLAB_WORKLOAD_CONNECTIONS": "8"}
+        env = {"AIOPSLAB_WORKLOAD_SCHEDULE": "300:20,120:50:3", "AIOPSLAB_WORKLOAD_CONNECTIONS": "8"}
         with patch.dict(os.environ, env):
             container = _created_container(_wrk())
         self.assertEqual(container["command"], ["/bin/sh", "-c"])
         script = container["args"][0]
-        self.assertIn("run 300 20; run 120 50;", script)
+        self.assertIn("run 300 20 0; run 120 50 3;", script)
         self.assertIn("-c 8", script)
         self.assertIn("http://10.0.0.1:5000", script)
         self.assertNotIn("-d 10s", script)
@@ -84,11 +84,11 @@ class ContinuousCommandTest(unittest.TestCase):
     def _run(self, wrk_body):
         with tempfile.TemporaryDirectory() as tmp:
             calls = Path(tmp) / "calls"
-            for name, body in (("wrk", f'echo "$*" >> {calls}\n{wrk_body}\n'), ("sleep", "exit 0\n")):
+            for name, body in (("wrk", f'echo "$* mix=$WRK_MIX" >> {calls}\n{wrk_body}\n'), ("sleep", "exit 0\n")):
                 path = Path(tmp) / name
                 path.write_text(f"#!/bin/sh\n{body}")
                 path.chmod(path.stat().st_mode | stat.S_IEXEC)
-            script = _wrk().continuous_command([(1, 5), (1, 7)], "script.lua", "http://10.0.0.1:5000")
+            script = _wrk().continuous_command([(1, 5, 0), (1, 7, 2)], "script.lua", "http://10.0.0.1:5000")
             env = {**os.environ, "PATH": f"{tmp}:{os.environ['PATH']}"}
             result = subprocess.run(["timeout", "2.5", "/bin/sh", "-c", script], env=env,
                                     capture_output=True, text=True)
@@ -104,7 +104,9 @@ class ContinuousCommandTest(unittest.TestCase):
         changes = [rate for i, rate in enumerate(rates) if i == 0 or rates[i - 1] != rate]
         self.assertEqual(changes[:2], ["5", "7"])
         self.assertLessEqual(len(changes), 4)
-        self.assertIn(" 1 5", stdout)
+        self.assertIn(" 1 5 0", stdout)
+        # Each segment hands its own mix to the payload script
+        self.assertTrue(all(call.endswith("mix=0" if "-R 5" in call else "mix=2") for call in calls))
 
 
 if __name__ == "__main__":

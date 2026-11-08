@@ -12,13 +12,19 @@ import time
 
 
 def parse_schedule(schedule):
-    """Parse "300:20,300:50" into [(300, 20), (300, 50)]: seconds and requests per second of each segment."""
+    """Parse "300:20,300:50:2" into [(300, 20, 0), (300, 50, 2)]: seconds, requests per second and mix of each segment.
+
+    The mix is an index into the request mixes of the payload script (WRK_MIX); 0, the default, is the script's usual mix.
+    """
     segments = []
     for segment in schedule.split(","):
-        seconds, rate = (int(value) for value in segment.split(":"))
-        if seconds <= 0 or rate <= 0:
+        values = [int(value) for value in segment.split(":")]
+        if len(values) == 2:
+            values.append(0)
+        seconds, rate, mix = values
+        if seconds <= 0 or rate <= 0 or mix < 0:
             raise ValueError(f"Invalid workload segment: {segment}")
-        segments.append((seconds, rate))
+        segments.append((seconds, rate, mix))
     return segments
 
 
@@ -64,6 +70,7 @@ class Wrk:
 
         wrk exits at once when it cannot connect, so each segment retries until its own end:
         a frontend that is down for a while must not shift the load schedule.
+        The payload script reads the segment's request mix from WRK_MIX.
         """
         connections = os.environ.get("AIOPSLAB_WORKLOAD_CONNECTIONS", self.connections)
         wrk = shlex.join(["wrk", "-D", self.dist, "-t", str(self.threads), "-c", str(connections),
@@ -72,10 +79,10 @@ class Wrk:
         return (
             'run() { end=$(($(date +%s) + $1)); '
             'while [ "$(date +%s)" -lt "$end" ]; do '
-            'echo "segment $(date +%s) $1 $2"; '
-            f'{wrk} -d "$((end - $(date +%s)))s" -R "$2"{latency} || sleep 5; '
+            'echo "segment $(date +%s) $1 $2 $3"; '
+            f'WRK_MIX="$3" {wrk} -d "$((end - $(date +%s)))s" -R "$2"{latency} || sleep 5; '
             'done; }; '
-            'while true; do ' + ' '.join(f'run {seconds} {rate};' for seconds, rate in segments) + ' done'
+            'while true; do ' + ' '.join(f'run {seconds} {rate} {mix};' for seconds, rate, mix in segments) + ' done'
         )
 
     def create_wrk_job(self, job_name, namespace, payload_script, url):
