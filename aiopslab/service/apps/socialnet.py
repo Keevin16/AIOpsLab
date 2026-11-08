@@ -3,6 +3,11 @@
 
 """Interface to the social network application from DeathStarBench"""
 
+import os
+import subprocess
+import sys
+import time
+
 from aiopslab.service.helm import Helm
 from aiopslab.service.kubectl import KubeCtl
 from aiopslab.service.apps.base import Application
@@ -63,6 +68,29 @@ class SocialNetwork(Application):
         # Thrift calls go through the ClusterIPs, which refuse connections until the endpoints turn ready
         self.kubectl.wait_for_ready(self.namespace, stable_for=30)
         self.kubectl.wait_for_endpoints(self.namespace)
+        if os.getenv("AIOPSLAB_SOCIAL_GRAPH"):
+            self.init_social_graph(os.environ["AIOPSLAB_SOCIAL_GRAPH"])
+
+    def init_social_graph(self, graph, port=18080):
+        """Register the users and follows of `graph` (e.g. socfb-Reed98), as the DeathStarBench README prescribes.
+
+        Without them every compose-post finds no follower: no home timeline is written, and reading one returns nothing.
+        """
+        forward = subprocess.Popen(
+            ["kubectl", "port-forward", f"svc/{self.frontend_service}", f"{port}:{self.frontend_port}", "-n", self.namespace],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            time.sleep(5)
+            started = time.time()
+            out = subprocess.run(
+                [sys.executable, "scripts/init_social_graph.py", f"--graph={graph}", "--ip=127.0.0.1", f"--port={port}"],
+                cwd=TARGET_MICROSERVICES / "socialNetwork", capture_output=True, text=True, check=True).stdout
+        finally:
+            forward.terminate()
+        summary = [line for line in out.splitlines() if line.startswith(("Succeeded", "Failed"))]
+        print(f"Social graph {graph} loaded in {time.time() - started:.0f} s: {summary}")
+        if any(line.startswith("Failed") for line in summary):
+            raise RuntimeError(f"Social graph {graph} only partly loaded: {summary}")
 
     def delete(self):
         """Delete the Helm configurations."""
