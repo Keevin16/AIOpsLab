@@ -64,7 +64,11 @@ class SocialNetwork(Application):
                 "--set media-frontend.container.imageVersion=latest"
             )
 
-        Helm.install(**self.helm_configs)
+        configs = dict(self.helm_configs)
+        if os.getenv("AIOPSLAB_SOCIAL_SAMPLING"):  # share of requests traced; the chart's default is 0.01
+            configs["extra_args"] = [*configs.get("extra_args", []),
+                                     f"--set global.jaeger.samplerParam={float(os.environ['AIOPSLAB_SOCIAL_SAMPLING'])}"]
+        Helm.install(**configs)
         # Thrift calls go through the ClusterIPs, which refuse connections until the endpoints turn ready
         self.kubectl.wait_for_ready(self.namespace, stable_for=30)
         self.kubectl.wait_for_endpoints(self.namespace)

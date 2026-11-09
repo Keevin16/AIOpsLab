@@ -46,5 +46,21 @@ class SocialGraphTest(unittest.TestCase):
             self.assertEqual(init.call_count, calls)
 
 
+class SamplingTest(unittest.TestCase):
+
+    def test_sampling_reaches_the_chart_only_when_asked(self):
+        for env, expected in (({}, None), ({"AIOPSLAB_SOCIAL_SAMPLING": "1"}, "--set global.jaeger.samplerParam=1.0")):
+            app = _app()
+            with patch(f"{MODULE}.Helm") as helm, patch.dict(os.environ, env):
+                if not env:
+                    os.environ.pop("AIOPSLAB_SOCIAL_SAMPLING", None)
+                os.environ.pop("AIOPSLAB_SOCIAL_GRAPH", None)
+                app.deploy()
+                app.deploy()  # a second deploy must not stack the flag
+            args = helm.install.call_args.kwargs.get("extra_args") or []
+            self.assertEqual([a for a in args if "samplerParam" in a], [expected] if expected else [])
+            self.assertNotIn("extra_args", app.helm_configs)  # the app's own configs stay as they were
+
+
 if __name__ == "__main__":
     unittest.main()
