@@ -6,6 +6,17 @@ containerdConfigPatches:
 - |-
   [plugins."io.containerd.grpc.v1.cri".registry]
     config_path = "/etc/containerd/certs.d"
+# kubectl logs reads only the current log file and kubelet rotates it at 10 MiB: error-heavy services lost the
+# start of their logs. Events expire after 1 h by default: a 95-min session kept none.
+kubeadmConfigPatches:
+- |
+  kind: KubeletConfiguration
+  containerLogMaxSize: "200Mi"
+- |
+  kind: ClusterConfiguration
+  apiServer:
+    extraArgs:
+      event-ttl: "24h"
 nodes:
   - role: control-plane
     image: jacksonarthurclark/aiopslab-kind-x86:latest
