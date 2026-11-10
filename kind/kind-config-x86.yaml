@@ -8,6 +8,8 @@ containerdConfigPatches:
     config_path = "/etc/containerd/certs.d"
 # kubectl logs reads only the current log file and kubelet rotates it at 10 MiB: error-heavy services lost the
 # start of their logs. Events expire after 1 h by default: a 95-min session kept none.
+# etcd in the node's /tmp, a tmpfs: on a slow disk (190 ms a write) its fsyncs time out and the deploy fails.
+# The cluster lives for one run, so etcd needs no durable storage.
 kubeadmConfigPatches:
 - |
   kind: KubeletConfiguration
@@ -17,6 +19,9 @@ kubeadmConfigPatches:
   apiServer:
     extraArgs:
       event-ttl: "24h"
+  etcd:
+    local:
+      dataDir: /tmp/etcd
 nodes:
   - role: control-plane
     image: jacksonarthurclark/aiopslab-kind-x86:latest

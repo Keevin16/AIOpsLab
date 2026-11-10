@@ -69,8 +69,9 @@ class SocialNetwork(Application):
             configs["extra_args"] = [*configs.get("extra_args", []),
                                      f"--set global.jaeger.samplerParam={float(os.environ['AIOPSLAB_SOCIAL_SAMPLING'])}"]
         Helm.install(**configs)
-        # Thrift calls go through the ClusterIPs, which refuse connections until the endpoints turn ready
-        self.kubectl.wait_for_ready(self.namespace, stable_for=30)
+        # Thrift calls go through the ClusterIPs, which refuse connections until the endpoints turn ready.
+        # 900 s: on a slow disk the images take minutes to unpack; a slow deploy is not a failed one
+        self.kubectl.wait_for_ready(self.namespace, stable_for=30, max_wait=900)
         self.kubectl.wait_for_endpoints(self.namespace)
         if os.getenv("AIOPSLAB_SOCIAL_GRAPH"):
             self.init_social_graph(os.environ["AIOPSLAB_SOCIAL_GRAPH"])
